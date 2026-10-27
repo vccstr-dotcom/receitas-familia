@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Regras de segurança da base de dados "Receitas da Família".
+// ANTES DE PUBLICAR: troque o_seu_email@gmail.com pelo email da conta Google
+// de quem gere a app (tudo em minúsculas). Essa pessoa pode depois acrescentar
+// os outros membros da família dentro da app, em Definições.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function entrou() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function meuEmail() {
+      return request.auth.token.email.lower();
+    }
+    function gestor() {
+      return entrou() && meuEmail() == 'o_seu_email@gmail.com';
+    }
+    function membro() {
+      return entrou() && (gestor() ||
+        (exists(/databases/$(database)/documents/config/membros) &&
+         meuEmail() in get(/databases/$(database)/documents/config/membros).data.emails));
+    }
+
+    match /recipes/{id} { allow read, write: if membro(); }
+    match /photos/{id}  { allow read, write: if membro(); }
+    match /config/{doc} {
+      allow read: if membro();
+      allow write: if gestor();
+    }
+  }
+}
